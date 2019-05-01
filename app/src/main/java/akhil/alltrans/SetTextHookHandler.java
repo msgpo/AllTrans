@@ -19,22 +19,17 @@
 
 package akhil.alltrans;
 
-import android.os.Handler;
-import android.os.Looper;
 import android.text.AlteredCharSequence;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.SpannedString;
 import android.text.TextUtils;
-import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.nio.CharBuffer;
 
 import de.robv.android.xposed.XC_MethodReplacement;
-
-import static de.robv.android.xposed.XposedBridge.hookMethod;
-import static de.robv.android.xposed.XposedBridge.unhookMethod;
+import de.robv.android.xposed.XposedBridge;
 
 
 public class SetTextHookHandler extends XC_MethodReplacement implements OriginalCallable {
@@ -76,60 +71,52 @@ public class SetTextHookHandler extends XC_MethodReplacement implements Original
             myArgs[0] = TextUtils.stringOrSpannedString(translatedString);
         }
 
-        alltrans.hookAccess.acquireUninterruptibly();
-        unhookMethod(methodHookParam.method, alltrans.setTextHook);
         try {
-            utils.debugLog("In Thread " + Thread.currentThread().getId() + " Invoking original function " + methodHookParam.method.getName() + " and setting text to " + myArgs[0].toString());
-            myMethod.invoke(methodHookParam.thisObject, myArgs);
+            XposedBridge.invokeOriginalMethod(methodHookParam.method, methodHookParam.thisObject, myArgs);
         } catch (Exception e) {
-            Log.e("AllTrans", "AllTrans: Got error in invoking method as : " + Log.getStackTraceString(e));
+            e.printStackTrace();
         }
-        hookMethod(methodHookParam.method, alltrans.setTextHook);
-        alltrans.hookAccess.release();
     }
 
     @Override
     protected Object replaceHookedMethod(MethodHookParam methodHookParam) throws Throwable {
         if (methodHookParam.args[0] != null) {
+            CharSequence arg1 = (CharSequence) methodHookParam.args[0];
+            if (TextUtils.isEmpty(arg1)) {// TODO 空白字符判断
+                // 如果是null，不用说，直接调原来的
+                callOriginalMethod(arg1, methodHookParam);
+                return null;
+            }
+
             String stringArgs = methodHookParam.args[0].toString();
 
-            if (isNotWhiteSpace(stringArgs)) {
+            // utils.debugLog("In Thread " + Thread.currentThread().getId() + " Recognized non-english string: " + stringArgs);
 
-                utils.debugLog("In Thread " + Thread.currentThread().getId() + " Recognized non-english string: " + stringArgs);
-                GetTranslate getTranslate = new GetTranslate();
-                getTranslate.stringToBeTrans = stringArgs;
-                getTranslate.originalCallable = this;
-                getTranslate.userData = methodHookParam;
-                getTranslate.canCallOriginal = true;
-
-                GetTranslateToken getTranslateToken = new GetTranslateToken();
-                getTranslateToken.getTranslate = getTranslate;
-
-                callOriginalMethod(stringArgs, methodHookParam);
-
-                alltrans.cacheAccess.acquireUninterruptibly();
-                if (PreferenceList.Caching && alltrans.cache.containsKey(stringArgs)) {
-                    String translatedString = alltrans.cache.get(stringArgs);
-                    utils.debugLog("In Thread " + Thread.currentThread().getId() + " found string in cache: " + stringArgs + " as " + translatedString);
-                    alltrans.cacheAccess.release();
-                    final String finalString = translatedString;
-                    final MethodHookParam finalMethodHookParam = methodHookParam;
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                callOriginalMethod(finalString, finalMethodHookParam);
-                            }
-                    }, PreferenceList.Delay);
-
+            if (PreferenceList.Caching) {
+                String translatedString = alltrans.cache.get(stringArgs);
+                if (translatedString != null) {
+                    // 缓存命中！
+                    // XposedBridge.log("In Thread " + Thread.currentThread().getId() + " found string in cache: " + stringArgs + " as " + translatedString);
+                    callOriginalMethod(translatedString, methodHookParam);
                     return null;
-                } else {
-                    alltrans.cacheAccess.release();
                 }
-
-                getTranslateToken.doAll();
-            } else {
-                callOriginalMethod(stringArgs, methodHookParam);
+                // utils.debugLog("In Thread " + Thread.currentThread().getId() + " found string in cache: " + stringArgs + " as " + translatedString);
             }
+
+            // 没得缓存，只有去翻译了。
+
+            GetTranslate getTranslate = new GetTranslate();
+            getTranslate.stringToBeTrans = stringArgs;
+            getTranslate.originalCallable = this;
+            getTranslate.userData = methodHookParam;
+            getTranslate.canCallOriginal = true;
+            GetTranslateToken getTranslateToken = new GetTranslateToken();
+            getTranslateToken.getTranslate = getTranslate;
+
+            callOriginalMethod(stringArgs, methodHookParam);
+
+            getTranslateToken.doAll();
+
         }
         return null;
     }

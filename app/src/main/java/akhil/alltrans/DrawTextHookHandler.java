@@ -32,9 +32,7 @@ import java.lang.reflect.Method;
 import java.nio.CharBuffer;
 
 import de.robv.android.xposed.XC_MethodReplacement;
-
-import static de.robv.android.xposed.XposedBridge.hookMethod;
-import static de.robv.android.xposed.XposedBridge.unhookMethod;
+import de.robv.android.xposed.XposedBridge;
 
 public class DrawTextHookHandler extends XC_MethodReplacement implements OriginalCallable {
 
@@ -89,8 +87,8 @@ public class DrawTextHookHandler extends XC_MethodReplacement implements Origina
         if (myArgs[0].getClass().equals(AlteredCharSequence.class)) {
             myArgs[0] = AlteredCharSequence.make(translatedString, null, 0, 0);
         } else if (myArgs[0].getClass().equals(CharBuffer.class)) {
-                CharBuffer charBuffer = CharBuffer.allocate(translatedString.length() + 1);
-                charBuffer.append(translatedString);
+            CharBuffer charBuffer = CharBuffer.allocate(translatedString.length() + 1);
+            charBuffer.append(translatedString);
             myArgs[0] = charBuffer;
         } else if (myArgs[0].getClass().equals(SpannableString.class)) {
             myArgs[0] = new SpannableString(translatedString);
@@ -102,9 +100,9 @@ public class DrawTextHookHandler extends XC_MethodReplacement implements Origina
             myArgs[0] = new StringBuffer(translatedString);
         } else if (myArgs[0].getClass().equals(StringBuilder.class)) {
             myArgs[0] = new StringBuilder(translatedString);
-            } else {
+        } else {
             myArgs[0] = new SpannableStringBuilder(translatedString);
-            }
+        }
 
         Paint tempPaint = (Paint) myArgs[myArgs.length - 1];
         Canvas tempCanvas = (Canvas) methodHookParam.thisObject;
@@ -114,16 +112,11 @@ public class DrawTextHookHandler extends XC_MethodReplacement implements Origina
             myArgs[2] = translatedString.length();
         }
 
-        alltrans.hookAccess.acquireUninterruptibly();
-        unhookMethod(methodHookParam.method, alltrans.setTextHook);
         try {
-            utils.debugLog("In Thread " + Thread.currentThread().getId() + " Invoking original function " + methodHookParam.method.getName() + " and setting text to " + myArgs[0].toString());
-            myMethod.invoke(methodHookParam.thisObject, myArgs);
+            XposedBridge.invokeOriginalMethod(methodHookParam.method, methodHookParam.thisObject, myArgs);
         } catch (Exception e) {
             Log.e("AllTrans", "AllTrans: Got error in invoking method as : " + Log.getStackTraceString(e));
         }
-        hookMethod(methodHookParam.method, alltrans.setTextHook);
-        alltrans.hookAccess.release();
     }
 
     @Override
@@ -144,15 +137,12 @@ public class DrawTextHookHandler extends XC_MethodReplacement implements Origina
                 GetTranslateToken getTranslateToken = new GetTranslateToken();
                 getTranslateToken.getTranslate = getTranslate;
 
-                alltrans.cacheAccess.acquireUninterruptibly();
                 if (PreferenceList.Caching && alltrans.cache.containsKey(stringArgs)) {
                     String translatedString = alltrans.cache.get(stringArgs);
                     utils.debugLog("In Thread " + Thread.currentThread().getId() + " found string in cache: " + stringArgs + " as " + translatedString);
-                    alltrans.cacheAccess.release();
                     callOriginalMethod(translatedString, methodHookParam);
                     return null;
                 } else {
-                    alltrans.cacheAccess.release();
                     callOriginalMethod(stringArgs, methodHookParam);
                 }
                 getTranslateToken.doAll();

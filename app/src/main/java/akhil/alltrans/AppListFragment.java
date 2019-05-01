@@ -26,6 +26,7 @@ import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -78,7 +79,7 @@ public class AppListFragment extends Fragment {
         super.onStart();
         context = this.getActivity();
         //noinspection deprecation,deprecation
-        BackupSharedPreferences.backupSharedPreferences(this.getActivity());
+        // BackupSharedPreferences.backupSharedPreferences(this.getActivity());
         settings = this.getActivity().getSharedPreferences("AllTransPref", MODE_WORLD_READABLE);
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(context);
 
@@ -93,7 +94,7 @@ public class AppListFragment extends Fragment {
         editor.putBoolean("com.ebay.global.gmarket", true);
         editor.putBoolean("com.foodfly.gcm", true);
         editor.putBoolean("com.ktcs.whowho", true);
-        editor.putString("SubscriptionKey", "65044997b4194b8f8c181a15166fcb46");
+        // editor.putString("SubscriptionKey", "65044997b4194b8f8c181a15166fcb46");
 //        editor.putBoolean("EnableYandex", true);
 //        editor.putString("SubscriptionKey", "trnsl.1.1.20170118T002434Z.95dd93bf09dbc8d4.04554b9aac2c1bcfee17ee76bc9979236ea2c2d4");
         editor.apply();
@@ -246,6 +247,25 @@ public class AppListFragment extends Fragment {
 
     }
 
+    public static List<String> getExpApps(Context context) {
+
+        Bundle result;
+        try {
+            result = context.getContentResolver().call(Uri.parse("content://me.weishu.exposed.CP/"), "apps", null, null);
+        } catch (Throwable e) {
+            return Collections.emptyList();
+        }
+
+        if (result == null) {
+            return Collections.emptyList();
+        }
+        List<String> list = result.getStringArrayList("apps");
+        if (list == null) {
+            return Collections.emptyList();
+        }
+        return list;
+    }
+
     private class PrepareAdapter extends AsyncTask<Void, Void, StableArrayAdapter> {
         ProgressDialog dialog;
 
@@ -265,7 +285,25 @@ public class AppListFragment extends Fragment {
         protected StableArrayAdapter doInBackground(Void... params) {
             final PackageManager pm = context.getPackageManager();
             //get a list of installed apps.
-            final List<ApplicationInfo> packages = getInstalledApplications(context);
+            List<ApplicationInfo> packages = new ArrayList<>();
+            List<String> expApps = getExpApps(context);
+            if (expApps.isEmpty()) {
+                final List<ApplicationInfo> installedApplications = getInstalledApplications(context);
+                for (ApplicationInfo installedApplication : installedApplications) {
+                    if ((installedApplication.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+                        packages.add(installedApplication);
+                    }
+                }
+            } else {
+                for (String expApp : expApps) {
+                    try {
+                        packages.add(pm.getApplicationInfo(expApp, 0));
+                    } catch (PackageManager.NameNotFoundException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+
             Collections.sort(packages, new Comparator<ApplicationInfo>() {
                 public int compare(ApplicationInfo a, ApplicationInfo b) {
                     if (settings.contains(a.packageName) && !settings.contains(b.packageName))

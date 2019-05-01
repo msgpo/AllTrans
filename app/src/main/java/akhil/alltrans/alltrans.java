@@ -30,8 +30,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.TextView;
 
-import java.util.HashMap;
+import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
@@ -51,7 +52,7 @@ public class alltrans implements IXposedHookLoadPackage {
     @SuppressLint("StaticFieldLeak")
     public static final WebViewHookHandler webViewHookHandler = new WebViewHookHandler();
     private static final DrawTextHookHandler drawTextHook = new DrawTextHookHandler();
-    public static HashMap<String, String> cache = new HashMap<>();
+    public static Map<String, String> cache = new ConcurrentHashMap<>();
     @SuppressLint("StaticFieldLeak")
     public static Context context;
 
@@ -86,8 +87,37 @@ public class alltrans implements IXposedHookLoadPackage {
         findAndHookConstructor(WebView.class, Context.class, AttributeSet.class, int.class, int.class, Map.class, boolean.class, webViewOnCreateHookHandler);
 
         //Hook all Text String methods
-        if (PreferenceList.SetText)
+        if (PreferenceList.SetText) {
             findAndHookMethod(TextView.class, "setText", CharSequence.class, TextView.BufferType.class, boolean.class, int.class, setTextHook);
+            if ("com.tencent.mm".equals(lpparam.packageName)) {
+//                try {
+//                    findAndHookMethod("com.tencent.mm.ui.base.NoMeasuredTextView", lpparam.classLoader, "setText", CharSequence.class, setTextHook);
+//                } catch (Throwable e) {
+//                    e.printStackTrace();
+//                }
+
+                try {
+                    Class<?> clazz = lpparam.classLoader.loadClass("com.tencent.mm.ui.widget.MMNeatTextView");
+                    Method[] declaredMethods = clazz.getDeclaredMethods();
+                    Method targetMethod = null;
+                    for (Method declaredMethod : declaredMethods) {
+                        if (declaredMethod.getReturnType() == Void.TYPE) {
+                            Class<?>[] parameterTypes = declaredMethod.getParameterTypes();
+                            if (parameterTypes.length == 1 && parameterTypes[0] == CharSequence.class) {
+                                targetMethod = declaredMethod;
+                                // XposedBridge.log("found : " + targetMethod);
+                            }
+                        }
+                    }
+                    XposedBridge.log("found : !!" + targetMethod);
+                    if (targetMethod != null) {
+                        XposedBridge.hookMethod(targetMethod, new WeChatTextHookHandler());
+                    }
+                } catch (Throwable throwable) {
+                    throwable.printStackTrace();
+                }
+            }
+        }
         if (PreferenceList.SetHint)
             findAndHookMethod(TextView.class, "setHint", CharSequence.class, setTextHook);
 

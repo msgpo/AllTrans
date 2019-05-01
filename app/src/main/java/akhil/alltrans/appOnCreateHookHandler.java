@@ -31,9 +31,12 @@ import de.robv.android.xposed.XposedBridge;
 class appOnCreateHookHandler extends XC_MethodHook {
     @Override
     protected void beforeHookedMethod(MethodHookParam methodHookParam) {
-        XposedBridge.log("AllTrans: in OnCreate of Application");
+        XposedBridge.log("AllTrans: in OnCreate of Application : " + methodHookParam.thisObject);
         Application application = (Application) methodHookParam.thisObject;
-        alltrans.context = application.getApplicationContext();
+        XposedBridge.log("application : " + application);
+
+        // alltrans.context = application.getApplicationContext();
+        alltrans.context = application;
 
         if (PreferenceList.Caching) {
             try {

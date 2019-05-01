@@ -25,6 +25,7 @@ import android.util.Log;
 
 import java.io.IOException;
 
+import de.robv.android.xposed.XposedBridge;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
@@ -67,6 +68,7 @@ public class GetTranslate implements Callback {
             }
 
             utils.debugLog("In Thread " + Thread.currentThread().getId() + " In GetTranslate, setting: " + stringToBeTrans + " to :" + translatedString);
+            XposedBridge.log("In Thread " + Thread.currentThread().getId() + " In GetTranslate, setting: " + stringToBeTrans + " to :" + translatedString);
 
         } catch (java.io.IOException e) {
             Log.e("AllTrans", "AllTrans: Got error in getting translation as : " + Log.getStackTraceString(e));
